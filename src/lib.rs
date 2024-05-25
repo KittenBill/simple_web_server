@@ -7,7 +7,6 @@ use std::{
 };
 
 pub struct ThreadPool {
-    pool_size: usize,
     threads: Vec<Worker>,
     sender: Option<Sender<Job>>,
 }
@@ -32,7 +31,6 @@ impl ThreadPool {
             threads.push(Worker::new(idx, receiver.clone()));
         }
         ThreadPool {
-            pool_size: size,
             threads: threads,
             sender: Some(sender),
         }
