@@ -1,3 +1,4 @@
+use core::num;
 use std::{
     fs::read_to_string,
     io::{prelude::*, BufReader},
@@ -12,14 +13,18 @@ fn main() {
     let listener = TcpListener::bind("127.0.0.1:7878").unwrap();
 
     let N = 2;
+    let number_of_stream_to_process = 2;
 
     let pool = ThreadPool::new(N);
-    for stream in listener.incoming() {
+    for stream in listener.incoming().take(number_of_stream_to_process) {
         let stream = stream.unwrap();
         pool.execute(|| {
             handle_connection(stream);
         });
     }
+
+    drop(pool);
+    println!("Web server has been shut down. Good bye.")
 }
 
 fn handle_connection(mut stream: TcpStream) {

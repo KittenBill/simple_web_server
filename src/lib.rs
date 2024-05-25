@@ -1,4 +1,5 @@
 use std::{
+    borrow::BorrowMut,
     sync::{
         mpsc::{self, Receiver, Sender},
         Arc, Mutex,
@@ -9,7 +10,7 @@ use std::{
 pub struct ThreadPool {
     pool_size: usize,
     threads: Vec<Worker>,
-    sender: Sender<Job>,
+    sender: Option<Sender<Job>>,
 }
 
 impl ThreadPool {
@@ -34,7 +35,7 @@ impl ThreadPool {
         ThreadPool {
             pool_size: size,
             threads: threads,
-            sender,
+            sender: Some(sender),
         }
     }
 
@@ -43,30 +44,51 @@ impl ThreadPool {
         F: FnOnce() -> () + Send + 'static,
     {
         let f = Box::new(f);
-        self.sender.send(f).unwrap();
+        if let Some(sender) = &self.sender {
+            sender.send(f).unwrap();
+        } else {
+            panic!("sender has been dropped.");
+        }
     }
 }
 
-impl Drop for ThreadPool{
+impl Drop for ThreadPool {
     fn drop(&mut self) {
-        
+        drop(self.sender.take().unwrap());
+
+        for worker in &mut self.threads {
+            if let Some(thread) = worker.thread.take() {
+                println!("ThreadPool is waiting for Worker {} to finish", worker.id);
+                thread.join().unwrap();
+                println!("Woker {} has finished.", worker.id);
+            }
+        }
     }
 }
 
 struct Worker {
     id: usize,
-    thread: JoinHandle<()>,
+    thread: Option<JoinHandle<()>>,
 }
 
 impl Worker {
     fn new(id: usize, receiver: Arc<Mutex<Receiver<Job>>>) -> Self {
         let thread = thread::spawn(move || loop {
-            while let Ok(job) = receiver.lock().unwrap().try_recv() {
-                println!("Worker {} got a job, executing.", id);
-                job();
+            match receiver.lock().unwrap().recv() {
+                Ok(job) => {
+                    println!("Worker {} received a job", id);
+                    job();
+                }
+                Err(e) => {
+                    println!("Error: {:?}. Sender is dropped, worker {} stops.", e, id);
+                    break;
+                }
             }
         });
-        Self { id, thread }
+        Self {
+            id,
+            thread: Some(thread),
+        }
     }
 }
 
