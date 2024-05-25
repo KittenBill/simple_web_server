@@ -1,10 +1,9 @@
 use std::{
-    borrow::BorrowMut,
     sync::{
         mpsc::{self, Receiver, Sender},
         Arc, Mutex,
     },
-    thread::{self, JoinHandle, Thread},
+    thread::{self, JoinHandle},
 };
 
 pub struct ThreadPool {
